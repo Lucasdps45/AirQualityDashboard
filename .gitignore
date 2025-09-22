@@ -1,0 +1,14 @@
+#Virtual environment
+venv/
+
+#Local config data
+config/
+#Cache data
+__pycache__/
+*.pyc
+
+#Local variables
+.env
+
+#Streamlit
+.streamlit/
