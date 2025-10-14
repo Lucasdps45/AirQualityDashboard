@@ -3,6 +3,7 @@ import streamlit as st
 import psycopg2
 import pandas as pd
 import plotly.graph_objects as go
+import plotly.express as px
 from datetime import datetime, timedelta
 
 @st.cache_data(ttl=300)  
@@ -192,3 +193,90 @@ if not city_data.empty:
 else:
     st.warning(f"No data available for {selected_city}")
 
+# BOTTOM: Interactive pollutants chart
+st.subheader("Evolução de poluentes")
+
+# Pollutant selection
+pollutants_options = {
+    "PM2.5": "pm25",
+    "PM10": "pm10", 
+    "Dióxido de nitrogênio (NO₂)": "no2",
+    "Ozônio (O₃)": "o3",
+    "Monóxido de carbono (CO)": "co",
+    "Dióxido de enxofre (SO₂)": "so2"
+}
+
+selected_pollutant = st.selectbox(
+    "Selecione o poluente para analise:",
+    options=list(pollutants_options.keys()),
+    index=0  # PM2.5 as default
+)
+
+# Colors for each pollutant
+pollutants_colors = {
+    "PM2.5": "#FF6B6B",
+    "PM10": "#4ECDC4",
+    "Dióxido de nitrogênio (NO₂)": "#45B7D1",
+    "Ozônio (O₃)": "#96CEB4", 
+    "Monóxido de carbono (CO)": "#FECA57",
+    "Dióxido de enxofre (SO₂)": "#FF9FF3"
+}
+
+# Last 7 days data
+pollutant_data = city_data[city_data['measured_at'] >= (datetime.now() - timedelta(days=7))]
+pollutant_data = pollutant_data.sort_values('measured_at')
+pollutant_data['format_data'] = pollutant_data['measured_at'].dt.strftime('%d/%m')
+
+# Line chart for selected pollutant
+pollutant_column = pollutants_options[selected_pollutant]
+pollutant_color = pollutants_colors[selected_pollutant]
+
+pollutant_fig = px.line(
+    pollutant_data,
+    x='format_data',
+    y=pollutant_column,
+    title=f'Evolução da concentração de {selected_pollutant} em {selected_city} (Últimos 7 dias)',
+    labels={
+        pollutant_column: 'Concentração (µg/m³)',
+        'format_data': 'Data'
+    }
+)
+
+# Customize chart
+pollutant_fig.update_traces(
+    line=dict(color=pollutant_color, width=4),
+    marker=dict(size=8, color=pollutant_color),
+    hovertemplate='<b>Date:</b> %{x}<br><b>Concentration:</b> %{y:.2f} µg/m³<extra></extra>'
+)
+
+pollutant_fig.update_layout(
+    xaxis_title='Data (Dia/Mês)',
+    yaxis_title=f'{selected_pollutant} Concentração (µg/m³)',
+    hovermode='x unified'
+)
+
+st.plotly_chart(pollutant_fig, use_container_width=True)
+
+# Show quick statistics
+if not pollutant_data.empty:
+    latest_value = pollutant_data[pollutant_column].iloc[-1]
+    average_7days = pollutant_data[pollutant_column].mean()
+    variation = ((latest_value - pollutant_data[pollutant_column].iloc[0]) / pollutant_data[pollutant_column].iloc[0]) * 100
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(
+            f"{selected_pollutant} (Última medição)", 
+            f"{latest_value:.2f} µg/m³"
+        )
+    with col2:
+        st.metric(
+            "Média (7 últimos dias)", 
+            f"{average_7days:.2f} µg/m³"
+        )
+    with col3:
+        st.metric(
+            "Variação (7 últimos dias)", 
+            f"{variation:+.1f}%",
+            delta_color="normal" if variation <= 0 else "inverse"
+        )
